@@ -1,7 +1,7 @@
 #pragma once
 #include <iostream>
 #include "../utility/utility.h"
-#include "../feature_manager.h"
+#include "../estimator/feature_manager.h"
 #include "initial_base.h"
 
 class VinsInit : public LooselyInit

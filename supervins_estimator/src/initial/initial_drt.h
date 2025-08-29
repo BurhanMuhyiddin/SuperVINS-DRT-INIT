@@ -8,7 +8,7 @@
 #include "../utility/tic_toc.h"
 #include "../utility/geometry.hpp"
 #include "../utility/opengv_method.hpp"
-#include "../feature_manager.h"
+#include "../estimator/feature_manager.h"
 #include "initial_base.h"
 #include "initial_ligt.h"
 

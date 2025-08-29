@@ -1,7 +1,7 @@
 #include "initial_vins.h"
 #include "initial_sfm.h"
 #include "solve_5pts.h"
-#include "../feature_manager.h"
+#include "../estimator/feature_manager.h"
 
 Initializer::Status VinsInit::initialize(std::map<double, ImageFrame> &all_image_frame, const FeatureManager &f_manager, const std_msgs::Header *Headers, Eigen::Vector3d *Bgs, Eigen::Vector3d &g, Eigen::VectorXd &x)
 {

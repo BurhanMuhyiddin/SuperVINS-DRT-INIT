@@ -21,7 +21,7 @@ using namespace Eigen;
 
 #include <ros/console.h>
 
-#include "../feature_manager.h"
+#include "../estimator/feature_manager.h"
 
 class MotionEstimator
 {

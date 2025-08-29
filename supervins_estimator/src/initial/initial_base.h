@@ -4,7 +4,7 @@
 #include <vector>
 #include <map>
 
-#include "../feature_manager.h"
+#include "../estimator/feature_manager.h"
 #include "../factor/imu_factor.h"
 
 class ImageFrame
