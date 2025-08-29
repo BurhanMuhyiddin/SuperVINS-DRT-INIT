@@ -46,6 +46,11 @@ double F_THRESHOLD;
 int SHOW_TRACK;
 int FLOW_BACK;
 
+// ------FD and Ays updates------
+int EQUALIZE;
+bool PUB_THIS_FRAME;
+// ------FD and Ays updates------
+
 string extractor_weight_global_path;
 string matcher_weight_global_path;
 
@@ -164,6 +169,7 @@ void readParameters(std::string config_file)
     fsSettings["cam0_calib"] >> cam0Calib;
     std::string cam0Path = configPath + "/" + cam0Calib;
     CAM_NAMES.push_back(cam0Path);
+    EQUALIZE = fsSettings["equalize"];
 
     if (NUM_OF_CAM == 2)
     {
@@ -181,6 +187,7 @@ void readParameters(std::string config_file)
         RIC.push_back(T.block<3, 3>(0, 0));
         TIC.push_back(T.block<3, 1>(0, 3));
     }
+    PUB_THIS_FRAME = false;
 
     INIT_DEPTH = 5.0;
     BIAS_ACC_THRESHOLD = 0.1;

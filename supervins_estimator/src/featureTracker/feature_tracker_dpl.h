@@ -28,6 +28,8 @@
 // lightglue
 #include "extractor_matcher_dpl.h"
 
+#include "feature_tracker_algo.h"
+
 using namespace std;
 using namespace camodocal;
 using namespace Eigen;
@@ -103,4 +105,16 @@ public:
     void match_with_predictions_dpl(cv::Mat prev_img_, cv::Mat cur_img_, vector<pair<cv::Point2f, vector<float>>> &prev_dplpts_descriptors_, vector<pair<cv::Point2f, vector<float>>> &cur_dplpts_descriptors_, vector<cv::Point2f> &predict_pts_, vector<cv::Point2f> &cur_pts_, vector<pair<int, int>> &result_matches,double &ransacReprojThreshold);
 
     cv::Mat setMask_dpl(vector<cv::Point2f> &matched_points, int radius);
+
+
+// updates FD and Ays
+    void readImage(const cv::Mat &_img, double _cur_time);
+    void checkEncoding(const cv::Mat &src, cv::Mat &dst);
+
+
+    cv::Mat desc;
+    cv::Mat forw_img;
+    vector<cv::Point2f> forw_pts;
+
+
 };

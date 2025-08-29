@@ -55,7 +55,8 @@ add_library(supervins_lib
     src/featureTracker/feature_tracker.cpp
     src/featureTracker/feature_tracker_dpl.cpp
     src/featureTracker/extractor_matcher_dpl.cpp
-    src/featureTracker/transform_dpl.cpp)
+    src/featureTracker/transform_dpl.cpp
+    src/featureTracker/feature_tracker_algo.cpp)
 target_link_libraries(supervins_lib ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} onnxruntime)
 
 

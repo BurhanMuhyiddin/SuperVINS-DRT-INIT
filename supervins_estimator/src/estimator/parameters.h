@@ -25,6 +25,12 @@ const int WINDOW_SIZE = 10;
 const int NUM_OF_F = 1000;
 //#define UNIT_SPHERE_ERROR
 
+// ------FD and Ays updates------
+extern int EQUALIZE;
+extern bool PUB_THIS_FRAME;
+// ------FD and Ays updates------
+
+
 extern double INIT_DEPTH;
 extern double MIN_PARALLAX;
 extern int ESTIMATE_EXTRINSIC;
