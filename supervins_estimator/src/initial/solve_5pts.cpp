@@ -241,5 +241,32 @@ bool MotionEstimator::solveRelativeRT(const vector<pair<Vector3d, Vector3d>> &co
     return false;
 }
 
-
-
+bool MotionEstimator::relativePose(const FeatureManager &f_manager, Eigen::Matrix3d &relative_R, Eigen::Vector3d &relative_T, int &l)
+{
+    // find previous frame which contians enough correspondance and parallex with newest frame
+    for (int i = 0; i < WINDOW_SIZE; i++)
+    {
+        vector<pair<Vector3d, Vector3d>> corres;
+        corres = f_manager.getCorresponding(i, WINDOW_SIZE);
+        if (corres.size() > 20)
+        {
+            double sum_parallax = 0;
+            double average_parallax;
+            for (int j = 0; j < int(corres.size()); j++)
+            {
+                Vector2d pts_0(corres[j].first(0), corres[j].first(1));
+                Vector2d pts_1(corres[j].second(0), corres[j].second(1));
+                double parallax = (pts_0 - pts_1).norm();
+                sum_parallax = sum_parallax + parallax;
+            }
+            average_parallax = 1.0 * sum_parallax / int(corres.size());
+            if (average_parallax * 460 > 30 && MotionEstimator::solveRelativeRT(corres, relative_R, relative_T))
+            {
+                l = i;
+                ROS_DEBUG("average_parallax %f choose l %d and newest frame to triangulate the whole structure", average_parallax * 460, l);
+                return true;
+            }
+        }
+    }
+    return false;
+}

@@ -30,6 +30,7 @@ std::string EX_CALIB_RESULT_PATH;
 std::string VINS_RESULT_PATH;
 std::string OUTPUT_FOLDER;
 std::string IMU_TOPIC;
+std::string INIT_ALGO;
 int ROW, COL;
 double TD;
 int NUM_OF_CAM;
@@ -88,6 +89,8 @@ void readParameters(std::string config_file)
         std::cerr << "ERROR: Wrong path to settings" << std::endl;
     }
 
+    fsSettings["initializer"] >> INIT_ALGO;
+
     fsSettings["image0_topic"] >> IMAGE0_TOPIC;
     fsSettings["image1_topic"] >> IMAGE1_TOPIC;
     MAX_CNT = fsSettings["max_cnt"];
@@ -123,22 +126,9 @@ void readParameters(std::string config_file)
     fout.close();
 
     ESTIMATE_EXTRINSIC = fsSettings["estimate_extrinsic"];
-    if (ESTIMATE_EXTRINSIC == 2)
+    if (ESTIMATE_EXTRINSIC == 0)
     {
-        ROS_WARN("have no prior about extrinsic param, calibrate extrinsic param");
-        RIC.push_back(Eigen::Matrix3d::Identity());
-        TIC.push_back(Eigen::Vector3d::Zero());
-        EX_CALIB_RESULT_PATH = OUTPUT_FOLDER + "/extrinsic_parameter.csv";
-    }
-    else
-    {
-        if (ESTIMATE_EXTRINSIC == 1)
-        {
-            ROS_WARN(" Optimize extrinsic param around initial guess!");
-            EX_CALIB_RESULT_PATH = OUTPUT_FOLDER + "/extrinsic_parameter.csv";
-        }
-        if (ESTIMATE_EXTRINSIC == 0)
-            ROS_WARN(" fix extrinsic param ");
+        ROS_WARN(" fix extrinsic param ");
 
         cv::Mat cv_T;
         fsSettings["body_T_cam0"] >> cv_T;
@@ -146,6 +136,22 @@ void readParameters(std::string config_file)
         cv::cv2eigen(cv_T, T);
         RIC.push_back(T.block<3, 3>(0, 0));
         TIC.push_back(T.block<3, 1>(0, 3));
+    }
+    else if (ESTIMATE_EXTRINSIC == 1)
+    {
+
+        ROS_WARN(" Optimize extrinsic param around initial guess!");
+        EX_CALIB_RESULT_PATH = OUTPUT_PATH + "/extrinsic_parameter.csv";
+    }
+    else
+    {
+        ROS_WARN("have no prior about extrinsic param, calibrate extrinsic param");
+        if (ESTIMATE_EXTRINSIC != 2){
+            ROS_WARN("didn't specify ESTIMATE_EXTRINSIC in config, calibrate is default action");
+        }
+        RIC.push_back(Eigen::Matrix3d::Identity());
+        TIC.push_back(Eigen::Vector3d::Zero());
+        EX_CALIB_RESULT_PATH = OUTPUT_PATH + "/extrinsic_parameter.csv";
     }
 
     NUM_OF_CAM = fsSettings["num_of_cam"];

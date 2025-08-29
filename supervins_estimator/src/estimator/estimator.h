@@ -44,6 +44,7 @@ class Estimator
     Estimator();
     ~Estimator();
     void setParameter();
+    void setInitAlgo();
 
     // interface
     void initFirstPose(Eigen::Vector3d p, Eigen::Matrix3d r);
@@ -57,9 +58,7 @@ class Estimator
 
     // internal
     void clearState();
-    bool initialStructure();
-    bool visualInitialAlign();
-    bool relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l);
+    void updateStateVector(const VectorXd &x);
     void slideWindow();
     void slideWindowNew();
     void slideWindowOld();
@@ -144,7 +143,7 @@ class Estimator
     int inputImageCnt;
 
     FeatureManager f_manager;
-    MotionEstimator m_estimator;
+    // MotionEstimator m_estimator;
     InitialEXRotation initial_ex_rotation;
 
     bool first_imu;
@@ -182,4 +181,6 @@ class Estimator
 
     bool initFirstPoseFlag;
     bool initThreadFlag;
+
+    std::unique_ptr<Initializer> initial_ptr;
 };

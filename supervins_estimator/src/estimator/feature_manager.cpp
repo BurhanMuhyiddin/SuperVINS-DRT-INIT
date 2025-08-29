@@ -9,7 +9,7 @@
 
 #include "feature_manager.h"
 
-int FeaturePerId::endFrame()
+int FeaturePerId::endFrame() const
 {
     return start_frame + feature_per_frame.size() - 1;
 }
@@ -124,7 +124,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
 /// @param frame_count_l 前一帧
 /// @param frame_count_r 后一帧
 /// @return 
-vector<pair<Vector3d, Vector3d>> FeatureManager::getCorresponding(int frame_count_l, int frame_count_r)
+vector<pair<Vector3d, Vector3d>> FeatureManager::getCorresponding(int frame_count_l, int frame_count_r) const
 {
     vector<pair<Vector3d, Vector3d>> corres;
     //遍历每个特征
@@ -538,7 +538,7 @@ void FeatureManager::removeFront(int frame_count)
 /// @param it_per_id 
 /// @param frame_count 
 /// @return 
-double FeatureManager::compensatedParallax2(const FeaturePerId &it_per_id, int frame_count)
+double FeatureManager::compensatedParallax2(const FeaturePerId &it_per_id, int frame_count) const
 {
     //check the second last frame is keyframe or not
     //parallax betwwen seconde last frame and third last frame

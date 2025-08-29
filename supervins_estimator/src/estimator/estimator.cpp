@@ -26,6 +26,20 @@ Estimator::~Estimator()
     }
 }
 
+void Estimator::setInitAlgo()
+{
+    if (INIT_ALGO == "drt")
+    {
+        initial_ptr = std::unique_ptr<DrtLooselyInit>(new DrtLooselyInit);
+        ROS_INFO("INIT: DRT Loosely");
+    }
+    else
+    {
+        initial_ptr = std::unique_ptr<VinsInit>(new VinsInit);
+        ROS_INFO("INIT: VINS Loosely");
+    }
+}
+
 void Estimator::clearState()
 {
     mProcess.lock();
@@ -592,16 +606,19 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
         {
             if (frame_count == WINDOW_SIZE) // 凑够一个滑窗的图像帧才能进行初始化
             {
-                bool result = false;
+                Initializer::Status result = Initializer::Status::DEFAULT;
+                VectorXd x;
+
                 // 如果不需要在线标定外参，而且当前帧时间戳与初始时间戳大于0.1s，则可以进行sfm
                 if (ESTIMATE_EXTRINSIC != 2 && (header - initial_timestamp) > 0.1)
                 {
 
-                    result = initialStructure();
-                    initial_timestamp = header;
+                    result = initial_ptr->initialize(all_image_frame, f_manager, Headers, Bgs, g, x);
+                    initial_timestamp = header.stamp.toSec();
                 }
-                if (result)
+                if (result == Initializer::Status::SUCCESS)
                 {
+                    updateStateVector(x);
                     optimization();
                     updateLatestStates();
                     solver_flag = NON_LINEAR;
@@ -609,7 +626,13 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
                     ROS_INFO("Initialization finish!");
                 }
                 else
+                {
+                    if (result == Initializer::Status::SFM_CONSTRUCT_FAILURE)
+                    {
+                        marginalization_flag = MARGIN_OLD;
+                    }
                     slideWindow();
+                }
             }
         }
 
@@ -713,180 +736,8 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
     }
 }
 
-/// @brief 初始化结构，sfm出一些初始姿态、位置和点的位置
-/// @return
-bool Estimator::initialStructure()
+void Estimator::updateStateVector(const VectorXd &x)
 {
-    TicToc t_sfm;
-    // check imu observibility
-    // 先检查IMU可观性，实际上就是检查IMU是否有充分运动（激励）但这段代码算了半天最后也没起作用，要不咱直接看下面sfm的代码吧
-    {
-        map<double, ImageFrame>::iterator frame_it;
-        Vector3d sum_g;
-        // 遍历现有的所有帧
-        for (frame_it = all_image_frame.begin(), frame_it++; frame_it != all_image_frame.end(); frame_it++)
-        {
-            double dt = frame_it->second.pre_integration->sum_dt;            // 取出每帧预积分的时间间隔
-            Vector3d tmp_g = frame_it->second.pre_integration->delta_v / dt; // 用速度变化量除以时间间隔得到每帧的平均速度变化量
-            sum_g += tmp_g;                                                  // 将所有帧的平均速度变化值累加
-        }
-        Vector3d aver_g;
-        aver_g = sum_g * 1.0 / ((int)all_image_frame.size() - 1); // 算所有帧的平均速度变化量
-        double var = 0;                                           // 新建一个变量用来保存方差
-        for (frame_it = all_image_frame.begin(), frame_it++; frame_it != all_image_frame.end(); frame_it++)
-        {
-            double dt = frame_it->second.pre_integration->sum_dt;
-            Vector3d tmp_g = frame_it->second.pre_integration->delta_v / dt;
-            var += (tmp_g - aver_g).transpose() * (tmp_g - aver_g);
-            // cout << "frame g " << tmp_g.transpose() << endl;
-        }
-        var = sqrt(var / ((int)all_image_frame.size() - 1)); // 计算所有帧速度变化量的方差
-        // ROS_WARN("IMU variation %f!", var);
-        if (var < 0.25)
-        {
-            ROS_INFO("IMU excitation not enough!");
-            // return false;
-        }
-    }
-    // global sfm
-
-    Quaterniond Q[frame_count + 1];           // 准备frame_count+1个位置来存放旋转Q
-    Vector3d T[frame_count + 1];              // 准备frame_count+1个位置来存放平移T
-    map<int, Vector3d> sfm_tracked_points;    // 准备个map存放[feature_id，特征点]
-    vector<SFMFeature> sfm_f;                 // 准备个vector存放sfm出来的特征
-    for (auto &it_per_id : f_manager.feature) // 遍历滑窗内所有特征
-    {
-        int imu_j = it_per_id.start_frame - 1; // 开一个计数器
-        SFMFeature tmp_feature;                // 建立一个临时sfmfeature
-        tmp_feature.state = false;             // sfmfeature状态先置为否，这个状态代表是否三角化
-        tmp_feature.id = it_per_id.feature_id; // sfmfeature的id置为特征id
-        // 遍历该特征的历史观测（归一化平面的点坐标），将存到tmp_feature当中
-        for (auto &it_per_frame : it_per_id.feature_per_frame)
-        {
-            imu_j++;
-            Vector3d pts_j = it_per_frame.point;
-            // SFMFeature的observation中，存储了一个空间点应的所有的观测帧id和归一化平面点
-            tmp_feature.observation.push_back(make_pair(imu_j, Eigen::Vector2d{pts_j.x(), pts_j.y()}));
-        }
-        sfm_f.push_back(tmp_feature);
-    }
-    Matrix3d relative_R;
-    Vector3d relative_T;
-    int l;
-    // 在滑窗内找一帧质量好的作为参考帧，计算其与滑窗内最后一帧的相对位姿
-    if (!relativePose(relative_R, relative_T, l))
-    {
-        ROS_INFO("Not enough features or parallax; Move device around");
-        return false;
-    }
-    // 创建一个sfm器，利用刚才找到的第l帧和滑窗最后一帧的相对位姿进行全局sfm
-    GlobalSFM sfm;
-    if (!sfm.construct(frame_count + 1, Q, T, l,
-                       relative_R, relative_T,
-                       sfm_f, sfm_tracked_points))
-    {
-        ROS_DEBUG("global SFM failed!");
-        // 全局sfm失败了，将最老的帧丢弃
-        marginalization_flag = MARGIN_OLD;
-        return false;
-    }
-
-    // solve pnp for all frame
-    map<double, ImageFrame>::iterator frame_it;
-    map<int, Vector3d>::iterator it;
-    frame_it = all_image_frame.begin();
-    // 遍历每个图像帧
-    for (int i = 0; frame_it != all_image_frame.end(); frame_it++)
-    {
-        // provide initial guess
-        cv::Mat r, rvec, t, D, tmp_r;
-        if ((frame_it->first) == Headers[i]) // 窗口内的帧位姿态都已经sfm出来了，直接赋值，设为关键帧
-        {
-            frame_it->second.is_key_frame = true;
-            frame_it->second.R = Q[i].toRotationMatrix() * RIC[0].transpose();
-            frame_it->second.T = T[i];
-            i++;
-            continue;
-        }
-        if ((frame_it->first) > Headers[i])
-        {
-            i++;
-        }
-        Matrix3d R_inital = (Q[i].inverse()).toRotationMatrix(); // 如果不是窗口内的帧，而是时间戳大于窗口内第i帧时间戳，以窗口内第i帧位姿为初值
-        Vector3d P_inital = -R_inital * T[i];
-        cv::eigen2cv(R_inital, tmp_r);
-        cv::Rodrigues(tmp_r, rvec);
-        cv::eigen2cv(P_inital, t);
-
-        frame_it->second.is_key_frame = false;
-        vector<cv::Point3f> pts_3_vector;
-        vector<cv::Point2f> pts_2_vector;
-        for (auto &id_pts : frame_it->second.points) // 遍历一下图像帧的特征点，找到sfm出来的对应空间点，为PnP做准备
-        {
-            int feature_id = id_pts.first;
-            for (auto &i_p : id_pts.second)
-            {
-                it = sfm_tracked_points.find(feature_id);
-                if (it != sfm_tracked_points.end())
-                {
-                    Vector3d world_pts = it->second;
-                    cv::Point3f pts_3(world_pts(0), world_pts(1), world_pts(2));
-                    pts_3_vector.push_back(pts_3);
-                    Vector2d img_pts = i_p.second.head<2>();
-                    cv::Point2f pts_2(img_pts(0), img_pts(1));
-                    pts_2_vector.push_back(pts_2);
-                }
-            }
-        }
-        cv::Mat K = (cv::Mat_<double>(3, 3) << 1, 0, 0, 0, 1, 0, 0, 0, 1);
-        if (pts_3_vector.size() < 6)
-        {
-            cout << "pts_3_vector size " << pts_3_vector.size() << endl;
-            ROS_DEBUG("Not enough points for solve pnp !");
-            return false;
-        }
-        // 求解PnP，这里可以看出，有一帧要是没求解出来，整个initialStructure就算失败了
-        if (!cv::solvePnP(pts_3_vector, pts_2_vector, K, D, rvec, t, 1))
-        {
-            ROS_DEBUG("solve pnp fail!");
-            return false;
-        }
-        cv::Rodrigues(rvec, r);
-        MatrixXd R_pnp, tmp_R_pnp;
-        cv::cv2eigen(r, tmp_R_pnp);
-        R_pnp = tmp_R_pnp.transpose();
-        MatrixXd T_pnp;
-        cv::cv2eigen(t, T_pnp);
-        T_pnp = R_pnp * (-T_pnp);
-        frame_it->second.R = R_pnp * RIC[0].transpose();
-        frame_it->second.T = T_pnp;
-    }
-
-    // 在获取了sfm初始化结果以后，就要做惯性相关的初始化了
-    if (visualInitialAlign())
-        return true;
-    else
-    {
-        ROS_INFO("misalign visual structure with IMU");
-        return false;
-    }
-}
-
-bool Estimator::visualInitialAlign()
-{
-    TicToc t_g;
-    VectorXd x;
-    // solve scale
-    // 惯性初始化，求解bias和重力方向，完成视觉-惯性对齐
-    // 送进这个函数是estimator滑窗中的陀螺零偏、重力引用，以及用于存放尺度因子的x
-    // 这里面都是构造残差项，通过令error=0构造Hx=b线性方程，利用乔里斯基分解直接求解线性方程，不是通过非线性优化求解的
-    bool result = VisualIMUAlignment(all_image_frame, Bgs, g, x);
-    if (!result)
-    {
-        ROS_DEBUG("solve g failed!");
-        return false;
-    }
-
     // change state
     // 更新状态
     for (int i = 0; i <= frame_count; i++)
@@ -935,45 +786,6 @@ bool Estimator::visualInitialAlign()
 
     f_manager.clearDepth();
     f_manager.triangulate(frame_count, Ps, Rs, tic, ric);
-
-    return true;
-}
-
-/// @brief 找滑窗内匹配足够多的一个历史帧，并计算其与最新一帧的相对位姿
-/// @param relative_R
-/// @param relative_T
-/// @param l
-/// @return
-bool Estimator::relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l)
-{
-    // find previous frame which contians enough correspondance and parallex with newest frame
-    for (int i = 0; i < WINDOW_SIZE; i++)
-    {
-        vector<pair<Vector3d, Vector3d>> corres;
-        corres = f_manager.getCorresponding(i, WINDOW_SIZE); // 获取窗口里第i帧和最后一帧之间的特征关联
-        if (corres.size() > 20)                              // 要是大于20个匹配，就接着进行视差大小的判断
-        {
-            double sum_parallax = 0;
-            double average_parallax;
-            // 算一下特征的平均视差大小
-            for (int j = 0; j < int(corres.size()); j++)
-            {
-                Vector2d pts_0(corres[j].first(0), corres[j].first(1));
-                Vector2d pts_1(corres[j].second(0), corres[j].second(1));
-                double parallax = (pts_0 - pts_1).norm();
-                sum_parallax = sum_parallax + parallax;
-            }
-            average_parallax = 1.0 * sum_parallax / int(corres.size());
-            // 平均视差大于一定数值，使用motion_estimator求解第i帧和第WINDOW_SIZE帧(就是滑窗最后一帧)之间的位姿变换
-            if (average_parallax * 460 > 30 && m_estimator.solveRelativeRT(corres, relative_R, relative_T))
-            {
-                l = i; // 计算成功了！
-                ROS_DEBUG("average_parallax %f choose l %d and newest frame to triangulate the whole structure", average_parallax * 460, l);
-                return true;
-            }
-        }
-    }
-    return false;
 }
 
 void Estimator::vector2double()
