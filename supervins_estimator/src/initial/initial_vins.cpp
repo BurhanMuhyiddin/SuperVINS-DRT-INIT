@@ -3,7 +3,7 @@
 #include "solve_5pts.h"
 #include "../estimator/feature_manager.h"
 
-Initializer::Status VinsInit::initialize(std::map<double, ImageFrame> &all_image_frame, const FeatureManager &f_manager, const std_msgs::Header *Headers, Eigen::Vector3d *Bgs, Eigen::Vector3d &g, Eigen::VectorXd &x)
+Initializer::Status VinsInit::initialize(std::map<double, ImageFrame> &all_image_frame, const FeatureManager &f_manager, const double *Headers, Eigen::Vector3d *Bgs, Eigen::Vector3d &g, Eigen::VectorXd &x)
 {
     int all_frame_count = all_image_frame.size();
     int n_state = all_frame_count * 3 + 3 + 1;
@@ -84,7 +84,7 @@ bool VinsInit::solveGyroscopeBias(map<double, ImageFrame> &all_image_frame, Vect
     return true;
 }
 
-VinsInit::VisualConstructStatus VinsInit::VisualConstruct(std::map<double, ImageFrame> &all_image_frame, const FeatureManager &f_manager, const std_msgs::Header *Headers)
+VinsInit::VisualConstructStatus VinsInit::VisualConstruct(std::map<double, ImageFrame> &all_image_frame, const FeatureManager &f_manager, const double *Headers)
 {
     int all_frame_count = all_image_frame.size();
     // global sfm
@@ -132,7 +132,7 @@ VinsInit::VisualConstructStatus VinsInit::VisualConstruct(std::map<double, Image
     {
         // provide initial guess
         cv::Mat r, rvec, t, D, tmp_r;
-        if ((frame_it->first) == Headers[i].stamp.toSec())
+        if ((frame_it->first) == Headers[i])
         {
             frame_it->second.is_key_frame = true;
             frame_it->second.R = Q[i].toRotationMatrix() * RIC[0].transpose();
@@ -140,7 +140,7 @@ VinsInit::VisualConstructStatus VinsInit::VisualConstruct(std::map<double, Image
             i++;
             continue;
         }
-        if ((frame_it->first) > Headers[i].stamp.toSec())
+        if ((frame_it->first) > Headers[i])
         {
             i++;
         }

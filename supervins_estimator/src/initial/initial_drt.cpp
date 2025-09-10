@@ -88,7 +88,7 @@ private:
     Eigen::Quaterniond _qic;
 };
 
-Initializer::Status DrtLooselyInit::initialize(std::map<double, ImageFrame> &all_image_frame, const FeatureManager &f_manager, const std_msgs::Header *Headers, Eigen::Vector3d *Bgs, Eigen::Vector3d &g, Eigen::VectorXd &x)
+Initializer::Status DrtLooselyInit::initialize(std::map<double, ImageFrame> &all_image_frame, const FeatureManager &f_manager, const double *Headers, Eigen::Vector3d *Bgs, Eigen::Vector3d &g, Eigen::VectorXd &x)
 {
     int all_frame_count = all_image_frame.size();
     int n_state = all_frame_count * 3 + 3 + 1;

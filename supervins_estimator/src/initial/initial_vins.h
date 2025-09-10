@@ -17,7 +17,7 @@ public:
         UNKNOWN_FAILURE
     };
     VinsInit() {}
-    Initializer::Status initialize(std::map<double, ImageFrame> &all_image_frame, const FeatureManager &f_manager, const std_msgs::Header *Headers, Eigen::Vector3d *Bgs, Eigen::Vector3d &g, Eigen::VectorXd &) override;
+    Initializer::Status initialize(std::map<double, ImageFrame> &all_image_frame, const FeatureManager &f_manager, const double *Headers, Eigen::Vector3d *Bgs, Eigen::Vector3d &g, Eigen::VectorXd &) override;
     bool solveGyroscopeBias(map<double, ImageFrame> &all_image_frame, Vector3d *Bgs);
-    VisualConstructStatus VisualConstruct(std::map<double, ImageFrame> &all_image_frame, const FeatureManager &f_manager, const std_msgs::Header *Headers);
+    VisualConstructStatus VisualConstruct(std::map<double, ImageFrame> &all_image_frame, const FeatureManager &f_manager, const double *Headers);
 };

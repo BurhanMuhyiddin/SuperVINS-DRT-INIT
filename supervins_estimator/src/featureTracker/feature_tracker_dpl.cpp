@@ -213,20 +213,43 @@ void FeatureTrackerDPL::match_features_dpl(cv::Mat prev_img_, cv::Mat cur_img_, 
     // std::cout<<"start find fundamental matrix"<<std::endl;
     // std::cout<<"points1 size = "<<points1.size()<<std::endl;
     // std::cout<<"points2 size = "<<points2.size()<<std::endl;
-    cv::Mat fundamentalMatrix = cv::findFundamentalMat(points1, points2, cv::FM_RANSAC, ransacReprojThreshold, 0.99, inliersMask);
+    if (points1.size() < 8 || points2.size() < 8) {
+        std::cout << "Insufficient point pairs for fundamental matrix estimation. points1: " << points1.size() << ", points2: " << points2.size() << std::endl;
+        result_matches.clear();
+        return;
+    }
 
-    // std::cout<<"end find fundamental matrix"<<std::endl;
+    // std::cout<<"start find fundamental matrix"<<std::endl;
+    // std::cout<<"points1 size = "<<points1.size()<<std::endl;
+    // std::cout<<"points2 size = "<<points2.size()<<std::endl;
 
-    // 获取内点
-    // Get interior points
-    // std::vector<cv::Point2f> inlierPrevPts, inlierCurPts;
-    std::vector<pair<int, int>> inlierMatches;
-    for (int i = 0; i < inliersMask.size(); ++i)
-    {
-        if (inliersMask[i])
-        {
-            result_matches.push_back(tem_matches[i]);
+    try {
+        cv::Mat fundamentalMatrix = cv::findFundamentalMat(points1, points2, cv::FM_RANSAC, ransacReprojThreshold, 0.99, inliersMask);
+
+        // Check if fundamental matrix was successfully computed
+        if (fundamentalMatrix.empty()) {
+            std::cout << "Failed to compute fundamental matrix" << std::endl;
+            result_matches.clear();
+            return;
         }
+
+        // std::cout<<"end find fundamental matrix"<<std::endl;
+
+        // 获取内点
+        // Get interior points
+        // std::vector<cv::Point2f> inlierPrevPts, inlierCurPts;
+        std::vector<pair<int, int>> inlierMatches;
+        for (int i = 0; i < inliersMask.size(); ++i)
+        {
+            if (inliersMask[i])
+            {
+                result_matches.push_back(tem_matches[i]);
+            }
+        }
+    } catch (const cv::Exception& e) {
+        std::cout << "OpenCV exception in findFundamentalMat: " << e.what() << std::endl;
+        result_matches.clear();
+        return;
     }
 }
 
@@ -908,6 +931,16 @@ cv::Mat FeatureTrackerDPL::getTrackImage()
     return imTrack;
 }
 
+void FeatureTrackerDPL::addPoints()
+{
+    for (auto &p : n_pts)
+    {
+        forw_pts.push_back(p);
+        ids.push_back(-1);
+        track_cnt.push_back(1);
+    }
+}
+
 void FeatureTrackerDPL::checkEncoding(const cv::Mat &src, cv::Mat &dst){
     int channels = src.channels();
     if (channels == 1)
@@ -929,7 +962,7 @@ void FeatureTrackerDPL::undistortedPoints()
     {
         Eigen::Vector2d a(cur_pts[i].x, cur_pts[i].y);
         Eigen::Vector3d b;
-        m_camera->liftProjective(a, b);
+        m_camera[0]->liftProjective(a, b);
         cur_un_pts.push_back(cv::Point2f(b.x() / b.z(), b.y() / b.z()));
         cur_un_pts_map.insert(make_pair(ids[i], cv::Point2f(b.x() / b.z(), b.y() / b.z())));
         // printf("cur pts id %d %f %f", ids[i], cur_un_pts[i].x, cur_un_pts[i].y);

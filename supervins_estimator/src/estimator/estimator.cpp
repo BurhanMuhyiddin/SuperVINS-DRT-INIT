@@ -6,9 +6,11 @@
  * Licensed under the GNU General Public License v3.0;
  * you may not use this file except in compliance with the License.
  *******************************************************/
-
+#include "../initial/initial_drt.h"
 #include "estimator.h"
 #include "../utility/visualization.h"
+#include "../utility/utility.h"
+#include <std_msgs/Header.h>
 
 Estimator::Estimator() : f_manager{Rs}
 {
@@ -32,6 +34,7 @@ void Estimator::setInitAlgo()
     {
         initial_ptr = std::unique_ptr<DrtLooselyInit>(new DrtLooselyInit);
         ROS_INFO("INIT: DRT Loosely");
+        std::cout << "INIT: DRT Loosely" << std::endl;
     }
     else
     {
@@ -109,13 +112,25 @@ void Estimator::clearState()
 void Estimator::setParameter()
 {
     mProcess.lock();
+
+    std::cout << "NUM_OF_CAM = " << NUM_OF_CAM << std::endl;
+    std::cout << "TIC.size() = " << TIC.size() << std::endl;
+    std::cout << "RIC.size() = " << RIC.size() << std::endl;
+
+    // Only check for vector sizes for TIC and RIC
+    if (TIC.size() < NUM_OF_CAM || RIC.size() < NUM_OF_CAM) {
+        std::cerr << "ERROR: TIC or RIC vector is smaller than NUM_OF_CAM!" << std::endl;
+        mProcess.unlock();
+        return;
+    }
+
     for (int i = 0; i < NUM_OF_CAM; i++)
     {
         tic[i] = TIC[i];
         ric[i] = RIC[i];
-        cout << " exitrinsic cam " << i << endl
-             << ric[i] << endl
-             << tic[i].transpose() << endl;
+        std::cout << "extrinsic cam " << i << std::endl
+                  << ric[i] << std::endl
+                  << tic[i].transpose() << std::endl;
     }
     f_manager.setRic(ric);
     ProjectionTwoFrameOneCamFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Matrix2d::Identity();
@@ -123,12 +138,16 @@ void Estimator::setParameter()
     ProjectionOneFrameTwoCamFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Matrix2d::Identity();
     td = TD;
     g = G;
-    cout << "set g " << g.transpose() << endl;
+    std::cout << "set g " << g.transpose() << std::endl;
     featureTracker.readIntrinsicParameter(CAM_NAMES);
+
     // new codes: initialize deep learning extractor and matcher
-    //  string extractorDPL_path = "/home/lhk/catkin_ws/src/VINS-Fusion-LightGlue/vins_estimator/weights_dpl/superpoint.onnx";
-    //  string matcherDPL_path = "/home/lhk/catkin_ws/src/VINS-Fusion-LightGlue/vins_estimator/weights_dpl/superpoint_lightglue_fused_cpu.onnx";
-    featureTracker.initializeExtractorMatcher(0, extractor_weight_global_path, matcher_weight_global_path, MATCHER_THRESHOLD); // initialize deep-learning based extractor and matcher
+    featureTracker.initializeExtractorMatcher(
+        0,
+        extractor_weight_global_path,
+        matcher_weight_global_path,
+        MATCHER_THRESHOLD
+    ); // initialize deep-learning based extractor and matcher
 
     std::cout << "MULTIPLE_THREAD is " << MULTIPLE_THREAD << '\n';
     if (MULTIPLE_THREAD && !initThreadFlag)
@@ -366,7 +385,7 @@ void Estimator::processMeasurements()
 {
     while (1)
     {
-        // std_msgs::Header des_header;
+        std_msgs::Header des_header;
         // des_header.frame_id = "world";
         // // 发布每一帧特征描述符的数据
         // pubSuperPointDescriptors(*this, des_header);
@@ -568,6 +587,8 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
         // printf("non-keyframe\n");
     }
 
+
+
     ROS_DEBUG("%s", marginalization_flag ? "Non-keyframe" : "Keyframe");
     ROS_DEBUG("Solving %d", frame_count);
     ROS_DEBUG("number of feature: %d", f_manager.getFeatureCount());
@@ -597,6 +618,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
         }
     }
 
+
     // 要是系统没初始化，需要先将系统初始化
     if (solver_flag == INITIAL)
     {
@@ -612,9 +634,9 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
                 // 如果不需要在线标定外参，而且当前帧时间戳与初始时间戳大于0.1s，则可以进行sfm
                 if (ESTIMATE_EXTRINSIC != 2 && (header - initial_timestamp) > 0.1)
                 {
-
                     result = initial_ptr->initialize(all_image_frame, f_manager, Headers, Bgs, g, x);
-                    initial_timestamp = header.stamp.toSec();
+
+                    initial_timestamp = header;
                 }
                 if (result == Initializer::Status::SUCCESS)
                 {
@@ -652,7 +674,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
                     frame_it->second.T = Ps[i];
                     i++;
                 }
-                solveGyroscopeBias(all_image_frame, Bgs);
+                //solveGyroscopeBias(all_image_frame, Bgs);
                 for (int i = 0; i <= WINDOW_SIZE; i++)
                 {
                     pre_integrations[i]->repropagate(Vector3d::Zero(), Bgs[i]);
@@ -830,6 +852,7 @@ void Estimator::vector2double()
     }
 
     VectorXd dep = f_manager.getDepthVector();
+    std::cout << dep.size() << std::endl;
     for (int i = 0; i < f_manager.getFeatureCount(); i++)
         para_Feature[i][0] = dep(i);
 
@@ -998,6 +1021,7 @@ void Estimator::optimization()
     if (!USE_IMU)
         problem.SetParameterBlockConstant(para_Pose[0]);
 
+
     for (int i = 0; i < NUM_OF_CAM; i++)
     {
         ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
@@ -1036,6 +1060,7 @@ void Estimator::optimization()
             problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j], para_SpeedBias[j]);
         }
     }
+
 
     int f_m_cnt = 0;
     int feature_index = -1;

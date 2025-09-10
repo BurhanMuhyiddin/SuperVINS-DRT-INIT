@@ -28,7 +28,6 @@
 // lightglue
 #include "extractor_matcher_dpl.h"
 
-#include "feature_tracker_algo.h"
 
 using namespace std;
 using namespace camodocal;
@@ -115,6 +114,7 @@ public:
     cv::Mat desc;
     cv::Mat forw_img;
     vector<cv::Point2f> forw_pts;
+    void addPoints();
 
 
 };

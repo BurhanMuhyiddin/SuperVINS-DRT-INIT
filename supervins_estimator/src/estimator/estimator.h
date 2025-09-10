@@ -26,7 +26,6 @@
 #include "../utility/tic_toc.h"
 #include "../initial/solve_5pts.h"
 #include "../initial/initial_sfm.h"
-#include "../initial/initial_alignment.h"
 #include "../initial/initial_ex_rotation.h"
 #include "../factor/imu_factor.h"
 #include "../factor/pose_local_parameterization.h"
@@ -34,10 +33,14 @@
 #include "../factor/projectionTwoFrameOneCamFactor.h"
 #include "../factor/projectionTwoFrameTwoCamFactor.h"
 #include "../factor/projectionOneFrameTwoCamFactor.h"
-//#include "../featureTracker/feature_tracker.h"
 #include "../featureTracker/feature_tracker_dpl.h"
 #include "../featureTracker/feature_tracker.h"
-
+#include "../initial/initial_vins.h"
+#include <std_msgs/Header.h>
+#include "../initial/initial_drt.h"
+#include "../initial/initial_ligt.h"
+#include "../initial/initial_vins.h"
+#include "../featureTracker/feature_tracker.h"
 class Estimator
 {
   public:
@@ -55,6 +58,9 @@ class Estimator
     void processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const double header);
     void processMeasurements();
     void changeSensorType(int use_imu, int use_stereo);
+
+
+   void solveGyroscopeBias(std::map<double, ImageFrame> &all_image_frame, Eigen::Vector3d *Bgs);
 
     // internal
     void clearState();

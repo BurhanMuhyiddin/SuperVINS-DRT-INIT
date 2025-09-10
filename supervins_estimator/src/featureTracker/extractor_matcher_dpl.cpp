@@ -8,25 +8,45 @@ void Extractor_DPL::initialize(std::string extractorPath, int extractor_type_)
 {
     extractor_type = extractor_type_;
     env = Ort::Env(ORT_LOGGING_LEVEL_WARNING, "LightGlueDecoupleOnnxRunner Extractor");
-    session_options = Ort::SessionOptions();
-    session_options.SetInterOpNumThreads(std::thread::hardware_concurrency());
-    session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
 
-    OrtCUDAProviderOptions cuda_options{};
-    cuda_options.device_id = 0;
-    cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchDefault;
-    cuda_options.gpu_mem_limit = 0;
-    cuda_options.arena_extend_strategy = 1;     // 设置GPU内存管理中的Arena扩展策略
-    cuda_options.do_copy_in_default_stream = 1; // 是否在默认CUDA流中执行数据复制
-    cuda_options.has_user_compute_stream = 0;
-    cuda_options.default_memory_arena_cfg = nullptr;
+    // Try GPU first, then CPU on failure
+    bool use_gpu = true;
 
-    session_options.AppendExecutionProvider_CUDA(cuda_options);
-    session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
+    try {
+        session_options = Ort::SessionOptions();
+        session_options.SetInterOpNumThreads(std::thread::hardware_concurrency());
+        session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_DISABLE_ALL);
+        session_options.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
 
-    Session = std::make_unique<Ort::Session>(env, extractorPath.c_str(), session_options);
+        if (use_gpu) {
+            OrtCUDAProviderOptions cuda_options{};
+            cuda_options.device_id = 0;
+            session_options.AppendExecutionProvider_CUDA(cuda_options);
+            std::cout << "[INFO] Attempting GPU execution" << std::endl;
+        } else {
+            std::cout << "[INFO] Using CPU execution" << std::endl;
+        }
 
-    // Initial Extractor
+        Session = std::make_unique<Ort::Session>(env, extractorPath.c_str(), session_options);
+
+    } catch (const Ort::Exception& e) {
+        if (use_gpu) {
+            std::cout << "[WARN] GPU execution failed, falling back to CPU: " << e.what() << std::endl;
+            use_gpu = false;
+
+            // Recreate session options for CPU-only
+            session_options = Ort::SessionOptions();
+            session_options.SetInterOpNumThreads(std::thread::hardware_concurrency());
+            session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_DISABLE_ALL);
+            session_options.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+
+            Session = std::make_unique<Ort::Session>(env, extractorPath.c_str(), session_options);
+        } else {
+            throw; // Re-throw if CPU also fails
+        }
+    }
+
+    // Initialize input & output nodes
     size_t numInputNodes = Session->GetInputCount();
     InputNodeNames.reserve(numInputNodes);
     for (size_t i = 0; i < numInputNodes; i++)
@@ -43,6 +63,7 @@ void Extractor_DPL::initialize(std::string extractorPath, int extractor_type_)
         OutputNodeShapes.emplace_back(Session->GetOutputTypeInfo(i).GetTensorTypeAndShapeInfo().GetShape());
     }
 }
+
 
 cv::Mat Extractor_DPL::pre_process(const cv::Mat &Image, float &scale)
 {
@@ -155,13 +176,20 @@ void Matcher_DPL::initialize(std::string matcherPath,int extractor_type_, float 
     session_options.SetInterOpNumThreads(std::thread::hardware_concurrency());
     session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
 
-    // use gpu
+
+
+    session_options.AddConfigEntry("disable_fused_attention", "1");
+    session_options.AddConfigEntry("disable_attn_packed_kv", "1");
+    session_options.AddConfigEntry("tensorrt.disable_fused_attention", "1");
+    session_options.AddConfigEntry("tensorrt.disable_packed_qkv", "1");
+    std::cout << "[INFO] Attention optimizations disabled for all providers (Matcher)" << std::endl;
+
     OrtCUDAProviderOptions cuda_options{};
     cuda_options.device_id = 0;
     cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchDefault;
     cuda_options.gpu_mem_limit = 0;
-    cuda_options.arena_extend_strategy = 1;     // 设置GPU内存管理中的Arena扩展策略
-    cuda_options.do_copy_in_default_stream = 1; // 是否在默认CUDA流中执行数据复制
+    cuda_options.arena_extend_strategy = 1;
+    cuda_options.do_copy_in_default_stream = 1;
     cuda_options.has_user_compute_stream = 0;
     cuda_options.default_memory_arena_cfg = nullptr;
 
@@ -169,6 +197,7 @@ void Matcher_DPL::initialize(std::string matcherPath,int extractor_type_, float 
     session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
 
     Session = std::make_unique<Ort::Session>(env, matcherPath.c_str(), session_options);
+
 
     // Initial Extractor
     size_t numInputNodes = Session->GetInputCount();

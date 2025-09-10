@@ -10,6 +10,7 @@
 #include "../utility/opengv_method.hpp"
 #include "../estimator/feature_manager.h"
 #include "initial_base.h"
+#include "initial_vins.h"
 #include "initial_ligt.h"
 
 /// @brief
@@ -17,8 +18,7 @@ class DrtLooselyInit : public LooselyInit
 {
 public:
     DrtLooselyInit() {}
-
-    Initializer::Status initialize(std::map<double, ImageFrame> &all_image_frame, const FeatureManager &f_manager, const std_msgs::Header *Headers, Eigen::Vector3d *Bgs, Eigen::Vector3d &g, Eigen::VectorXd &x) override;
+    Initializer::Status initialize(std::map<double, ImageFrame> &all_image_frame, const FeatureManager &f_manager, const double *Headers, Eigen::Vector3d *Bgs, Eigen::Vector3d &g, Eigen::VectorXd &x) override;
     bool VisualConstruct(std::map<double, ImageFrame> &all_image_frame, const FeatureManager &f_manager);
     bool solveGyroscopeBias(std::map<double, ImageFrame> &all_image_frame, Eigen::Vector3d *Bgs);
 };

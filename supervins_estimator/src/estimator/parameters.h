@@ -22,7 +22,7 @@ using namespace std;
 
 const double FOCAL_LENGTH = 460.0;
 const int WINDOW_SIZE = 10;
-const int NUM_OF_F = 1000;
+const int NUM_OF_F = 2000;
 //#define UNIT_SPHERE_ERROR
 
 // ------FD and Ays updates------
@@ -48,9 +48,10 @@ extern double SOLVER_TIME;
 extern int NUM_ITERATIONS;
 extern std::string EX_CALIB_RESULT_PATH;
 extern std::string VINS_RESULT_PATH;
-extern std::string OUTPUT_FOLDER;
+extern std::string OUTPUT_PATH;
 extern std::string IMU_TOPIC;
 extern std::string INIT_ALGO;
+extern std::string TRACKER_ALGO;
 extern double TD;
 extern int ESTIMATE_TD;
 extern int ROLLING_SHUTTER;

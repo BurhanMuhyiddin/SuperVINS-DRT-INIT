@@ -28,9 +28,10 @@ int ESTIMATE_TD;
 int ROLLING_SHUTTER;
 std::string EX_CALIB_RESULT_PATH;
 std::string VINS_RESULT_PATH;
-std::string OUTPUT_FOLDER;
+std::string OUTPUT_PATH;
 std::string IMU_TOPIC;
 std::string INIT_ALGO;
+std::string TRACKER_ALGO;
 int ROW, COL;
 double TD;
 int NUM_OF_CAM;
@@ -94,7 +95,6 @@ void readParameters(std::string config_file)
         std::cerr << "ERROR: Wrong path to settings" << std::endl;
     }
 
-    fsSettings["initializer"] >> INIT_ALGO;
 
     fsSettings["image0_topic"] >> IMAGE0_TOPIC;
     fsSettings["image1_topic"] >> IMAGE1_TOPIC;
@@ -105,6 +105,9 @@ void readParameters(std::string config_file)
     FLOW_BACK = fsSettings["flow_back"];
 
     MULTIPLE_THREAD = fsSettings["multiple_thread"];
+
+    fsSettings["initializer"] >> INIT_ALGO;
+    fsSettings["tracker_algo"] >> TRACKER_ALGO;
 
     USE_IMU = fsSettings["imu"];
     printf("USE_IMU: %d\n", USE_IMU);
@@ -124,8 +127,8 @@ void readParameters(std::string config_file)
     MIN_PARALLAX = fsSettings["keyframe_parallax"];
     MIN_PARALLAX = MIN_PARALLAX / FOCAL_LENGTH;
 
-    fsSettings["output_path"] >> OUTPUT_FOLDER;
-    VINS_RESULT_PATH = OUTPUT_FOLDER + "/vio.csv";
+    fsSettings["output_path"] >> OUTPUT_PATH;
+    VINS_RESULT_PATH = OUTPUT_PATH + "/vio.csv";
     std::cout << "result path " << VINS_RESULT_PATH << std::endl;
     std::ofstream fout(VINS_RESULT_PATH, std::ios::out);
     fout.close();
@@ -147,6 +150,13 @@ void readParameters(std::string config_file)
 
         ROS_WARN(" Optimize extrinsic param around initial guess!");
         EX_CALIB_RESULT_PATH = OUTPUT_PATH + "/extrinsic_parameter.csv";
+        cv::Mat cv_T;
+        fsSettings["body_T_cam0"] >> cv_T;
+        Eigen::Matrix4d T;
+        cv::cv2eigen(cv_T, T);
+        RIC.push_back(T.block<3, 3>(0, 0));
+        TIC.push_back(T.block<3, 1>(0, 3));
+
     }
     else
     {

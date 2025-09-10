@@ -294,6 +294,7 @@ int main(int argc, char **argv)
     //给estimator设置参数，因为一些参数可能被优化，所以可能会重置参数，注意，如果开启了多线程模式，在setParameter()中就已经将状态估计函数放入一个独立线程运行了
     //Set parameters for the estimator. Because some parameters may be optimized, the parameters may be reset. Note that if the multi-thread mode is turned on, the state estimation function has been put into an independent thread to run in set parameter().
     estimator.setParameter();
+    estimator.setInitAlgo();
 
 #ifdef EIGEN_DONT_PARALLELIZE
     ROS_DEBUG("EIGEN_DONT_PARALLELIZE");

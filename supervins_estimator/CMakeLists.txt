@@ -19,7 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(OpenCV REQUIRED)
 find_package(Ceres REQUIRED PATHS "/usr/lib/cmake/Ceres")
-set(ONNXRUNTIME_ROOTDIR "/home/aze_pc0218/onnxruntime-linux-x64-1.16.3")
+set(ONNXRUNTIME_ROOTDIR "/home/aze_pc0218/onnxruntime-linux-x64-gpu-1.18.1")
 include_directories("${ONNXRUNTIME_ROOTDIR}/include")
 link_directories("${ONNXRUNTIME_ROOTDIR}/lib")
 
@@ -55,7 +55,11 @@ add_library(supervins_lib
     src/featureTracker/feature_tracker.cpp
     src/featureTracker/feature_tracker_dpl.cpp
     src/featureTracker/extractor_matcher_dpl.cpp
-    src/featureTracker/transform_dpl.cpp)
+    src/featureTracker/transform_dpl.cpp
+    src/initial/initial_vins.cpp
+    src/initial/initial_drt.cpp
+    src/initial/initial_base.cpp
+    src/initial/initial_ligt.cpp)
 target_link_libraries(supervins_lib ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} onnxruntime)
 
 

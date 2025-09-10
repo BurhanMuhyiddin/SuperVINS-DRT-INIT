@@ -39,7 +39,7 @@ public:
         UNKNOWN_ERROR,
         DEFAULT
     };
-    virtual Status initialize(std::map<double, ImageFrame> &all_image_frame, const FeatureManager &f_manager, const std_msgs::Header *Headers, Eigen::Vector3d *Bgs, Eigen::Vector3d &g, Eigen::VectorXd &x) = 0;
+    virtual Status initialize(std::map<double, ImageFrame> &all_image_frame, const FeatureManager &f_manager, const double *Headers, Eigen::Vector3d *Bgs, Eigen::Vector3d &g, Eigen::VectorXd &x) = 0;
 };
 
 class LooselyInit : public Initializer
